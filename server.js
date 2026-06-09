@@ -3,14 +3,20 @@ const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
+
+// Enable CORS so your mobile preview frontend can communicate with Render
 app.use(cors());
 app.use(express.json());
 
-// Pull keys safely from Render's environment
+// Fetch your credentials securely from Render's environment variables
 const CONSUMER_KEY = process.env.DARAJA_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.DARAJA_CONSUMER_SECRET;
 
+/**
+ * Route to generate the Daraja Access Token
+ */
 app.get('/api/token', async (req, res) => {
+    // Check if variables are missing to prevent runtime errors
     if (!CONSUMER_KEY || !CONSUMER_SECRET) {
         return res.status(500).json({
             error: "Infrastructure Refusal",
@@ -18,7 +24,7 @@ app.get('/api/token', async (req, res) => {
         });
     }
 
-    // Combine Key:Secret and encode to Base64 format
+    // Generate correct Base64 string (Key:Secret)
     const authString = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64');
 
     try {
@@ -32,17 +38,38 @@ app.get('/api/token', async (req, res) => {
             }
         );
 
-        // Pass token to frontend
-        res.status(200).json({ access_token: response.data.access_token });
+        // Send token back to your frontend portal cleanly
+        return res.status(200).json({
+            access_token: response.data.access_token,
+            expires_in: response.data.expires_in
+        });
 
     } catch (error) {
-        console.error("Daraja Error Logs:", error.response ? error.response.data : error.message);
-        res.status(500).json({
-            error: "Handshake Denied",
-            message: "Failed to generate authentic Daraja Sandbox token."
-        });
+        console.error("=== DARAJA AUTH FAILURE ===");
+        if (error.response) {
+            console.error("Status:", error.response.status);
+            console.error("Data:", error.response.data);
+            return res.status(error.response.status).json({
+                error: "Handshake Denied",
+                message: error.response.data.errorMessage || "Failed to generate authentic Daraja token."
+            });
+        } else {
+            console.error("Message:", error.message);
+            return res.status(500).json({
+                error: "Token Failure",
+                message: "Could not connect to Safaricom nodes."
+            });
+        }
     }
 });
 
+// Root route to easily check if the server is alive in your browser
+app.get('/', (req, res) => {
+    res.send('Spin Wave Techs Backend Server is running smoothly!');
+});
+
+// Bind to the port provided by Render dynamically
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server executing seamlessly on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server executing seamlessly on port ${PORT}`);
+});
