@@ -1,7 +1,7 @@
 {
-  "name": "spin-wave-techs-backend",
+  "name": "spin-wave-techs-sandbox-backend",
   "version": "1.0.0",
-  "description": "Secure M-Pesa STK Push Gateway Layer",
+  "description": "M-Pesa STK Push Sandbox Gateway for Spin Wave Techs",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,7 +9,6 @@
   "dependencies": {
     "express": "^4.19.2",
     "axios": "^1.7.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5"
+    "cors": "^2.8.5"
   }
 }
