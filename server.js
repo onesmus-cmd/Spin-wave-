@@ -4,51 +4,58 @@ const cors = require('cors');
 
 const app = express();
 
-// Enable Cross-Origin Resource Sharing so your hosted frontend can communicate with this backend
+// Enable Cross-Origin Resource Sharing for your Spin Wave Techs Portal
 app.use(cors());
 app.use(express.json());
 
-// YOUR UNIQUE SAFARICOM DARAJA SANDBOX CREDENTIALS FROM YOUR PORTAL
+// YOUR UNIQUE SAFARICOM DARAJA SANDBOX CREDENTIALS
 const CONSUMER_KEY = "bKnv1VUuj07WyR6TQV3vwffHTHGoa8w15eWmMGXVgamrhGSa"; 
 const CONSUMER_SECRET = "igEAEfdqkxeMcOV2KH3a4tef4adM9H4tFoLPrHt04fFfuofXvvYiU4FoZkGRvCQ0"; 
 
 // Official Lipa Na M-Pesa Sandbox Constants
 const PASSKEY = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"; 
 const BUSINESS_SHORTCODE = '174379'; 
-
-// Live Callback tracking webhook hosted on your active Render instance
 const CALLBACK_URL = 'https://spinwave.onrender.com/api/callback'; 
 
 /**
- * Middleware generation layer to fetch your dynamic Safaricom OAuth Access Token
+ * Robust Authorization middleware configured specifically for the Safaricom Sandbox Node
  */
 async function generateToken(req, res, next) {
+    // Generate clean Base64 auth string
     const auth = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64');
     
     try {
-        const response = await axios.get(
-            'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
-            {
-                headers: {
-                    Authorization: `Basic ${auth}`
-                }
+        const response = await axios({
+            method: 'get',
+            url: 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
+            headers: {
+                'Authorization': `Basic ${auth}`,
+                'Accept': 'application/json'
             }
-        );
-        req.authToken = response.data.access_token;
-        next();
+        });
+        
+        if (response.data && response.data.access_token) {
+            req.authToken = response.data.access_token;
+            next();
+        } else {
+            throw new Error("Invalid response format from Daraja.");
+        }
     } catch (error) {
-        console.error("Token Generation Failure:", error.response ? error.response.data : error.message);
-        res.status(500).json({ error: "Failed to generate personal Daraja Sandbox token." });
+        // Detailed error tracking for your Render log stream
+        console.error("Critical Daraja Handshake Failure:", error.response ? error.response.data : error.message);
+        res.status(500).json({ 
+            error: "Failed to generate personal Daraja Sandbox token.",
+            details: error.response ? error.response.data : error.message 
+        });
     }
 }
 
 /**
- * Primary endpoint to initialize the secure STK Push transaction sequence
+ * Core endpoint initializing the secure STK Push transaction sequence
  */
 app.post('/api/stkpush', generateToken, async (req, res) => {
     const { phone, amount } = req.body;
 
-    // Architectural timestamp logic required by Safaricom formatting: YYYYMMDDHHmmss
     const date = new Date();
     const timestamp = date.getFullYear() +
         ("0" + (date.getMonth() + 1)).slice(-2) +
@@ -57,7 +64,6 @@ app.post('/api/stkpush', generateToken, async (req, res) => {
         ("0" + date.getMinutes()).slice(-2) +
         ("0" + date.getSeconds()).slice(-2);
 
-    // Create password payload by combining shortcode, passkey, and timestamp
     const password = Buffer.from(`${BUSINESS_SHORTCODE}${PASSKEY}${timestamp}`).toString('base64');
 
     const stkPayload = {
@@ -91,15 +97,11 @@ app.post('/api/stkpush', generateToken, async (req, res) => {
     }
 });
 
-/**
- * Webhook endpoint where Safaricom pushes transaction status updates
- */
 app.post('/api/callback', (req, res) => {
     console.log("Incoming Safaricom Sandbox Callback Payload:", JSON.stringify(req.body, null, 2));
     res.status(200).json({ ResultCode: 0, ResultDesc: "Callback accepted by cloud server." });
 });
 
-// Dynamic port configuration bound to Render's container system
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Spin Wave Techs backend active on cloud port ${PORT}`);
